@@ -1,11 +1,11 @@
 import Foundation
 import IrohLib
 
-struct Identity {
-    let secretKey: SecretKey
-    var endpointId: String { secretKey.public().description }
+public struct Identity {
+    public let secretKey: SecretKey
+    public var endpointId: String { secretKey.public().description }
 
-    static func loadOrCreate(dir: URL) throws -> Identity {
+    public static func loadOrCreate(dir: URL) throws -> Identity {
         let keyFile = dir.appendingPathComponent("identity.key")
         if let data = try? Data(contentsOf: keyFile),
            let key = try? SecretKey.fromBytes(bytes: data) {
