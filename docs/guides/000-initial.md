@@ -26,11 +26,11 @@ ping/
     └── Node.swift               ← Endpoint bind, accept loop, dial+timeout, sync exchange
 ```
 
-Each running instance points at its own state directory (`--dir`), which is what lets you run several peers on one Mac:
+Each running instance points at its own state directory via `--dir` (defaulting to `~/.config/ping/` when the flag is omitted), which is what lets you run several peers on one Mac:
 
 ```
-~/tmp/peer-a/.ping/   ← identity.key, roster.json, state.json
-~/tmp/peer-b/.ping/
+~/tmp/peer-a/   ← identity.key, roster.json, state.json
+~/tmp/peer-b/
 ```
 
 ---
@@ -52,7 +52,7 @@ import PackageDescription
 
 let package = Package(
     name: "ping",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS("15.0")],
     dependencies: [
         .package(url: "https://github.com/n0-computer/iroh-ffi.git", from: "1.1.0"),
     ],
@@ -66,6 +66,8 @@ let package = Package(
 ```
 
 Tools version 5.10 rather than 6.0 keeps strict-concurrency checking in "warnings, not errors" mode. The IrohLib types come from UniFFI-generated code and you'll be moving them across task boundaries; fighting Swift 6 `Sendable` errors is real work, and it's not the point of this prototype.
+
+The platform is spelled `.macOS("15.0")` rather than `.v15` because the enum cases for recent OS versions were introduced in PackageDescription 6.x and are unavailable to a 5.10 manifest — the string form works under any tools version. (iroh-ffi's own floor is macOS 14.5, so 15.0 comfortably clears it.)
 
 ### Verify
 
@@ -189,7 +191,7 @@ struct MyState: Codable {
     var status: String = "(unset)"
 }
 
-final class Store {
+actor Store {
     let dir: URL
     private(set) var peers: [String: PeerRecord]
     private(set) var myState: MyState
@@ -210,6 +212,8 @@ final class Store {
     }
 }
 ```
+
+`Store` is an `actor` rather than a class, and that's load-bearing, not ceremony. The sweep (Step 7) pings every roster peer in a concurrent task group, the accept loop (Step 5) spawns a task per incoming connection, and with two peers on 30-second timers both happen at once routinely — A dials B while B is dialing A, and each side's sync calls `update(_:_:)`. As a class that's a real data race on the `peers` dictionary plus interleaved file writes, and tools 5.10 would only warn about it. The actor serializes every access; the only cost is that callers say `await`, which you'll see sprinkled through Steps 5–7.
 
 The stubbed methods are one-to-three-liners following the pattern already shown — fill them in:
 
@@ -294,7 +298,7 @@ final class Node {
         let id = try EndpointId.fromString(s: peerId)
         // Cached addrs are hints: iroh tries them alongside discovery, which
         // makes LAN dials work even when DNS is slow, stale, or offline.
-        let hints = store.peers[peerId]?.cachedAddrs ?? []
+        let hints = await store.peers[peerId]?.cachedAddrs ?? []
         let addr = EndpointAddr(id: id, relayUrl: nil, addresses: hints)
         let ep = endpoint!
         return try await withThrowingTaskGroup(of: Connection.self) { group in
@@ -323,25 +327,37 @@ Three things worth understanding rather than copying:
 
 ### Verify
 
-Wire up a temporary `Ping.swift` main to prove bind works:
+Wire up a temporary `Ping.swift` main to prove identity persistence works. The `takeDirFlag` helper is permanent — Step 7 replaces `main` but keeps it:
 
 ```swift
 import Foundation
 
 @main struct Ping {
     static func main() async throws {
-        let dir = URL(fileURLWithPath: ".ping")
+        var args = Array(CommandLine.arguments.dropFirst())
+        let dir = takeDirFlag(&args)
         let identity = try Identity.loadOrCreate(dir: dir)
         print("endpoint id: \(identity.endpointId)")
+    }
+
+    /// Pull `--dir <path>` out of the arg list; default to ~/.config/ping/.
+    static func takeDirFlag(_ args: inout [String]) -> URL {
+        if let i = args.firstIndex(of: "--dir"), i + 1 < args.count {
+            let path = args.remove(at: i + 1)
+            args.remove(at: i)
+            return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/ping")
     }
 }
 ```
 
 ```bash
-mkdir -p ~/tmp/peer-a && cd ~/tmp/peer-a && swift run --package-path ~/path/to/ping
+swift run ping --dir ~/tmp/peer-a
 ```
 
-Run it twice from the same directory — the id must not change. Run from a second directory (`peer-b`) — the id must differ. That's your multi-peer-on-one-Mac setup working.
+Run it twice with the same `--dir` — the id must not change. Run with `--dir ~/tmp/peer-b` — the id must differ. That's your multi-peer-on-one-Mac setup working, no `cd` juggling required. (The directory is created on first use by `Identity.loadOrCreate`.)
 
 ---
 
@@ -365,54 +381,59 @@ Add to `Node.swift`:
         let send = bi.send()
         let recv = bi.recv()
 
+        // One snapshot of my state for the whole exchange — seq and status read
+        // together, so a concurrent `status` command can't tear them apart.
+        let my = await store.myState
+
         // 1. Exchange hellos. Payload carries the cursor: "highest seq of YOURS I've seen."
-        let myCursor = store.peers[remote]?.lastSeenSeq ?? 0
+        let myCursor = await store.peers[remote]?.lastSeenSeq ?? 0
         try await Wire.write(Wire.Envelope(
             contentType: "sync/hello",
             sender: identity.endpointId,
-            seq: store.myState.seq,
+            seq: my.seq,
             payload: try JSONEncoder().encode(myCursor)
         ), to: send)
         let theirHello = try await Wire.read(from: recv)
         let theirCursorOfMe = try JSONDecoder().decode(UInt64.self, from: theirHello.payload)
 
         // 2. Send state only if the peer is behind — this is the "pull updates" part.
-        if store.myState.seq > theirCursorOfMe {
+        if my.seq > theirCursorOfMe {
             try await Wire.write(Wire.Envelope(
                 contentType: "state/status",
                 sender: identity.endpointId,
-                seq: store.myState.seq,
-                payload: try JSONEncoder().encode(store.myState.status)
+                seq: my.seq,
+                payload: try JSONEncoder().encode(my.status)
             ), to: send)
         }
         try await Wire.write(Wire.Envelope(
             contentType: "sync/bye", sender: identity.endpointId,
-            seq: store.myState.seq, payload: Data()
+            seq: my.seq, payload: Data()
         ), to: send)
 
         // 3. Read their side until bye, dispatching on contentType.
         while true {
             let env = try await Wire.read(from: recv)
             if env.contentType == "sync/bye" { break }
-            handle(env, from: remote)
+            await handle(env, from: remote)
         }
 
         // 4. Contact bookkeeping: cursor floor from the hello, fresh addresses, timestamp.
         let paths = conn.paths().filter { $0.isIp }.map { $0.remoteAddr }
-        store.update(remote) { rec in
+        await store.update(remote) { rec in
             rec.lastSeenSeq = max(rec.lastSeenSeq, theirHello.seq)
             if !paths.isEmpty { rec.cachedAddrs = paths }
             rec.lastContact = Date()
         }
     }
 
-    private func handle(_ env: Wire.Envelope, from remote: String) {
-        guard env.seq > (store.peers[remote]?.lastSeenSeq ?? 0) else { return }  // stale
+    private func handle(_ env: Wire.Envelope, from remote: String) async {
+        let cursor = await store.peers[remote]?.lastSeenSeq ?? 0
+        guard env.seq > cursor else { return }  // stale
         switch env.contentType {
         case "state/status":
             let status = (try? JSONDecoder().decode(String.self, from: env.payload)) ?? "?"
             print("● \(remote.prefix(8)) → seq \(env.seq): \(status)")
-            store.update(remote) { $0.lastSeenSeq = env.seq }
+            await store.update(remote) { $0.lastSeenSeq = env.seq }
         default:
             print("● \(remote.prefix(8)) → unknown contentType \(env.contentType), ignoring")
         }
@@ -437,15 +458,15 @@ Full verification is the run loop in Step 7 — one step away.
 
 ## Step 7 — The CLI run loop
 
-Replace `Ping.swift` with real argument handling. Bare-bones `CommandLine.arguments` parsing is fine — ArgumentParser is a dependency you don't need yet.
+Replace `main` in `Ping.swift` with real argument handling, keeping the `takeDirFlag` helper from Step 5. Bare-bones `CommandLine.arguments` parsing is fine — ArgumentParser is a dependency you don't need yet.
 
 ```swift
 import Foundation
 
 @main struct Ping {
     static func main() async throws {
-        let args = CommandLine.arguments.dropFirst()
-        let dir = URL(fileURLWithPath: ".ping")
+        var args = Array(CommandLine.arguments.dropFirst())
+        let dir = takeDirFlag(&args)
         let identity = try Identity.loadOrCreate(dir: dir)
         let store = Store(dir: dir)
 
@@ -454,26 +475,40 @@ import Foundation
             print(identity.endpointId)
         case "add":
             guard let id = args.dropFirst().first else { fail("usage: ping add <endpoint-id>") }
-            store.addPeer(id)
+            await store.addPeer(id)
             print("added \(id.prefix(8))…")
         case "status":
-            store.setStatus(args.dropFirst().joined(separator: " "))
-            print("status set (seq \(store.myState.seq))")
+            await store.setStatus(args.dropFirst().joined(separator: " "))
+            let seq = await store.myState.seq
+            print("status set (seq \(seq))")
         case "run":
             let node = Node(identity: identity, store: store)
             try await node.start()
-            print("ping \(identity.endpointId.prefix(8))… up, \(store.peers.count) peers on roster")
+            let count = await store.peers.count
+            print("ping \(identity.endpointId.prefix(8))… up, \(count) peers on roster")
             while true {
-                await withTaskGroup(of: Void.self) { group in
-                    for id in store.peers.keys {          // concurrent sweep: one dead
+                let ids = await Array(store.peers.keys)   // snapshot: accept-side syncs
+                await withTaskGroup(of: Void.self) { group in  // may grow the roster mid-sweep
+                    for id in ids {                       // concurrent sweep: one dead
                         group.addTask { await node.ping(id) }  // peer can't stall the rest
                     }
                 }
                 try await Task.sleep(for: .seconds(30))
             }
         default:
-            fail("usage: ping id | add <id> | status <text> | run")
+            fail("usage: ping [--dir <path>] id | add <id> | status <text> | run")
         }
+    }
+
+    /// Pull `--dir <path>` out of the arg list; default to ~/.config/ping/.
+    static func takeDirFlag(_ args: inout [String]) -> URL {
+        if let i = args.firstIndex(of: "--dir"), i + 1 < args.count {
+            let path = args.remove(at: i + 1)
+            args.remove(at: i)
+            return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/ping")
     }
 
     static func fail(_ msg: String) -> Never { print(msg); exit(1) }
@@ -484,26 +519,26 @@ The sweep pings all roster peers concurrently in a task group and only then slee
 
 ### Verify — the whole thing, end to end
 
-Two terminals:
+Two terminals, both in the package directory — `--dir` is what keeps the peers separate:
 
 ```bash
 # Terminal A
-mkdir -p ~/tmp/peer-a && cd ~/tmp/peer-a
-swift run --package-path ~/src/ping ping id        # copy this
-swift run --package-path ~/src/ping ping status "hello from A"
-swift run --package-path ~/src/ping ping run
+cd ~/src/ping
+swift run ping --dir ~/tmp/peer-a id        # copy this
+swift run ping --dir ~/tmp/peer-a status "hello from A"
+swift run ping --dir ~/tmp/peer-a run
 
 # Terminal B
-mkdir -p ~/tmp/peer-b && cd ~/tmp/peer-b
-swift run --package-path ~/src/ping ping add <A's id>
-swift run --package-path ~/src/ping ping status "B checking in"
-swift run --package-path ~/src/ping ping run
+cd ~/src/ping
+swift run ping --dir ~/tmp/peer-b add <A's id>
+swift run ping --dir ~/tmp/peer-b status "B checking in"
+swift run ping --dir ~/tmp/peer-b run
 ```
 
 Within one sweep you should see, in terminal B, `● <A-prefix> → seq 1: hello from A` — and in terminal A the reverse, *even though A never added B*, because A's accept-side sync created the roster entry. Then:
 
-1. Ctrl-C peer B, run `ping status "B was away"` in its directory, restart `run` — A picks up the new seq on the next contact. Offline catch-up works.
-2. Check `~/tmp/peer-a/.ping/roster.json` — B's entry should have `cachedAddrs` with a real `ip:port` and a `lastContact` timestamp.
+1. Ctrl-C peer B, run `swift run ping --dir ~/tmp/peer-b status "B was away"`, restart `run` — A picks up the new seq on the next contact. Offline catch-up works.
+2. Check `~/tmp/peer-a/roster.json` — B's entry should have `cachedAddrs` with a real `ip:port` and a `lastContact` timestamp.
 3. Kill B and leave A running — A's sweep logs `failed: timeout` after ~5s and keeps cycling. That's your fast-fail behavior verified.
 
 ---
@@ -517,4 +552,5 @@ At runtime: `run` binds the endpoint (publishing your relay + addresses to n0's 
 - **Add a second content-type** (`state/battery`, anything) without touching framing or sync — the dispatch in `handle` is the only edit. Proving that extension point is cheap is the real test of the envelope design.
 - **Backoff for dead peers**: track consecutive failures in `PeerRecord` and skip peers exponentially — pull loops make this trivial since it's just sweep-time filtering.
 - **Lift Node into a SwiftUI app**: `Node`, `Wire`, `Roster`, and `Identity` move unchanged; the CLI loop becomes foreground-timer + reconcile-on-launch, which is where the iOS backgrounding realities from our earlier discussion come in.
+- **Extract a reusable package (`PingKit`)**: once the sync works end-to-end, split `Identity`, `Wire`, `Roster`, and `Node` into a library target with a `.library` product, leaving `Ping.swift` as a thin executable — consumers (future p2p projects, including iOS 17.5+) get IrohLib transitively. Three things to address at that point, none structural: mark the intended surface `public` (including inits — Swift won't synthesize public ones); move the app-specific bits out of the generic bits (ALPN becomes a constructor parameter, `handle`'s switch becomes a pluggable handler registry, `MyState` belongs to the app); and clean up the remaining `Sendable` warnings, since a library exports its concurrency story to Swift 6 consumers. Deliberately deferred until the prototype proves out — public-API decisions come easier after you've felt which parts you reach for.
 - **Third peer**: spin up `peer-c`, add A and B to its roster, and watch the full mesh converge — no code changes needed.
