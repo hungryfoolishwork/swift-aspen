@@ -327,6 +327,8 @@ Three things worth understanding rather than copying:
 
 ### Verify
 
+Note that `Node.swift` references `runSync`, which Step 6 adds — the build won't compile until then, so do Steps 5 and 6 as one edit-build cycle. The identity check below doesn't need `Node` at all.
+
 Wire up a temporary `Ping.swift` main to prove identity persistence works. The `takeDirFlag` helper is permanent — Step 7 replaces `main` but keeps it:
 
 ```swift
@@ -465,6 +467,7 @@ import Foundation
 
 @main struct Ping {
     static func main() async throws {
+        setvbuf(stdout, nil, _IONBF, 0)  // sync lines must land even when piped to a file
         var args = Array(CommandLine.arguments.dropFirst())
         let dir = takeDirFlag(&args)
         let identity = try Identity.loadOrCreate(dir: dir)
