@@ -27,7 +27,7 @@ public struct OutboundState: Sendable {
 /// run on every contact. App-specific pieces are injected: the ALPN names
 /// your protocol, `stateProvider` supplies what to send, and `on(_:_:)`
 /// registers handlers per content type. Register all handlers before start().
-public final class Node {
+public actor Node {
     public typealias StateProvider = @Sendable () async -> OutboundState
     public typealias Handler = @Sendable (Wire.Envelope, _ remote: String) async -> Void
 
@@ -36,7 +36,7 @@ public final class Node {
     public let alpn: Data
     public let dialTimeout: Duration
     /// Optional diagnostics sink (accept-loop errors, ignored envelopes).
-    public var log: (@Sendable (String) -> Void)?
+    public let log: (@Sendable (String) -> Void)?
 
     private let stateProvider: StateProvider
     private var handlers: [String: Handler] = [:]
@@ -47,12 +47,14 @@ public final class Node {
         roster: Roster,
         alpn: Data,
         dialTimeout: Duration = .seconds(5),
+        log: (@Sendable (String) -> Void)? = nil,
         stateProvider: @escaping StateProvider
     ) {
         self.identity = identity
         self.roster = roster
         self.alpn = alpn
         self.dialTimeout = dialTimeout
+        self.log = log
         self.stateProvider = stateProvider
     }
 

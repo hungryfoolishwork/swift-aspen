@@ -1,7 +1,7 @@
 import Foundation
 import IrohLib
 
-public struct Identity {
+public struct Identity: Sendable {
     public let secretKey: SecretKey
     public var endpointId: String { secretKey.public().description }
 

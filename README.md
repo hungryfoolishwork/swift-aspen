@@ -1,4 +1,4 @@
-# foolish-ping
+# Aspen
 
 Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships `ping`, a command-line demo app that syncs a single status string between peers — it doubles as the reference integration. Everything is plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework; no Rust toolchain, no Xcode project.
 

@@ -25,18 +25,17 @@ import Aspen
             let seq = await status.state.seq
             print("status set (seq \(seq))")
         case "run":
-            let node = Node(identity: identity, roster: roster, alpn: alpn) {
+            let node = Node(identity: identity, roster: roster, alpn: alpn, log: { print($0) }) {
                 let s = await status.state
                 let payload = (try? JSONEncoder().encode(s.status)) ?? Data()
                 return OutboundState(seq: s.seq, items: [
                     .init(contentType: "state/status", payload: payload)
                 ])
             }
-            node.on("state/status") { env, remote in
+            await node.on("state/status") { env, remote in
                 let text = (try? JSONDecoder().decode(String.self, from: env.payload)) ?? "?"
                 print("● \(remote.prefix(8)) → seq \(env.seq): \(text)")
             }
-            node.log = { print($0) }
             try await node.start()
             let count = await roster.peers.count
             print("ping \(identity.endpointId.prefix(8))… up, \(count) peers on roster")
