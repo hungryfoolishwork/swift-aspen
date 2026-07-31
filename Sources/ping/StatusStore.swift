@@ -1,7 +1,7 @@
 import Foundation
 
 /// The app-side state: one status string under a monotonically increasing
-/// seq, persisted to state.json. PingKit never sees this type — it only gets
+/// seq, persisted to state.json. Aspen never sees this type — it only gets
 /// the seq and an encoded payload through the node's state provider.
 actor StatusStore {
     struct State: Codable {

@@ -5,7 +5,7 @@ let package = Package(
     name: "ping",
     platforms: [.macOS("15.0")],
     products: [
-        .library(name: "PingKit", targets: ["PingKit"]),
+        .library(name: "Aspen", targets: ["Aspen"]),
         .executable(name: "ping", targets: ["ping"]),
     ],
     dependencies: [
@@ -13,12 +13,12 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "PingKit",
+            name: "Aspen",
             dependencies: [.product(name: "IrohLib", package: "iroh-ffi")]
         ),
         .executableTarget(
             name: "ping",
-            dependencies: ["PingKit"]
+            dependencies: ["Aspen"]
         ),
     ]
 )

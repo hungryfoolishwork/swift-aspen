@@ -1,6 +1,6 @@
 # foolish-ping
 
-PingKit is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships `ping`, a command-line demo app that syncs a single status string between peers — it doubles as the reference integration. Everything is plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework; no Rust toolchain, no Xcode project.
+Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships `ping`, a command-line demo app that syncs a single status string between peers — it doubles as the reference integration. Everything is plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework; no Rust toolchain, no Xcode project.
 
 ## Sync model
 
@@ -12,22 +12,22 @@ Dials race a deadline (default 5 seconds), and the sweep pings all peers concurr
 
 Messages are JSON envelopes — `contentType`, `sender`, `seq`, opaque `payload` — length-prefixed on the wire. The header exists so the sync layer can route and order without understanding any payload; what the payload means belongs entirely to the app. Additive protocol changes are new content types (an old peer logs and skips what it doesn't know); breaking changes are a new ALPN string (old and new peers simply never complete a handshake).
 
-## What PingKit owns vs. what your app owns
+## What Aspen owns vs. what your app owns
 
-PingKit owns the transport (endpoint, accept loop, deadline dials), the roster with its cursors and cached direct addresses, and the sync exchange. Your app owns its state model and persistence, and hands the library three things:
+Aspen owns the transport (endpoint, accept loop, deadline dials), the roster with its cursors and cached direct addresses, and the sync exchange. Your app owns its state model and persistence, and hands the library three things:
 
 - **An ALPN** naming your protocol, passed to `Node(identity:roster:alpn:...)` — every app picks its own, e.g. `Data("myapp/0".utf8)`.
 - **A state provider**, an async closure returning `OutboundState` — the current seq plus the envelope items to send when a peer is behind. It's called once per contact, so seq and payloads are read as one consistent snapshot.
-- **Handlers** registered per content type with `node.on("state/thing") { envelope, remote in ... }` before `start()`. PingKit gates staleness by seq and advances the cursor after your handler runs; the handler just interprets the payload.
+- **Handlers** registered per content type with `node.on("state/thing") { envelope, remote in ... }` before `start()`. Aspen gates staleness by seq and advances the cursor after your handler runs; the handler just interprets the payload.
 
 Optionally set `node.log` to see accept-loop errors and ignored envelopes; the library never prints on its own.
 
 ## Layout
 
 ```
-Package.swift            # library product PingKit + executable ping
+Package.swift            # library product Aspen + executable ping
 Sources/
-├── PingKit/
+├── Aspen/
 │   ├── Identity.swift   # Ed25519 secret key on disk; EndpointId is the public key
 │   ├── Wire.swift       # Envelope + length-prefixed framing over QUIC streams
 │   ├── Roster.swift     # actor: peer records, cursors, cached addrs (roster.json)
@@ -37,7 +37,7 @@ Sources/
     └── StatusStore.swift # the app-owned state: one status string under a seq
 ```
 
-## Importing PingKit
+## Importing Aspen
 
 From a local checkout:
 
@@ -47,7 +47,7 @@ dependencies: [
 ],
 targets: [
     .target(name: "myapp", dependencies: [
-        .product(name: "PingKit", package: "foolish-ping"),
+        .product(name: "Aspen", package: "foolish-ping"),
     ]),
 ]
 ```

@@ -1,5 +1,5 @@
 import Foundation
-import PingKit
+import Aspen
 
 @main struct Ping {
     /// This app's protocol id — bump the suffix on breaking changes.
