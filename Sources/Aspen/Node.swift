@@ -71,6 +71,19 @@ public actor Node {
         Task { await runAcceptLoop() }
     }
 
+    /// The direct (ip:port) addresses this node is currently reachable on.
+    /// Hand these to a peer out-of-band (alongside the endpoint id) to let it
+    /// dial without waiting on discovery. Empty before start().
+    public func directAddresses() -> [String] {
+        endpoint?.addr().directAddresses() ?? []
+    }
+
+    /// Close the endpoint. In-flight syncs are cut off and the accept loop
+    /// exits; the node can't be restarted.
+    public func stop() async {
+        try? await endpoint?.close()
+    }
+
     // MARK: incoming
 
     private func runAcceptLoop() async {

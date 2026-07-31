@@ -19,19 +19,27 @@ public enum Wire {
     }
 
     public static func write(_ env: Envelope, to send: SendStream) async throws {
+        try await send.writeAll(buf: encodeFrame(env))
+    }
+
+    public static func read(from recv: RecvStream) async throws -> Envelope {
+        let len = try frameLength(header: try await recv.readExact(size: 4))
+        let body = try await recv.readExact(size: len)
+        return try JSONDecoder().decode(Envelope.self, from: body)
+    }
+
+    static func encodeFrame(_ env: Envelope) throws -> Data {
         let body = try JSONEncoder().encode(env)
         var len = UInt32(body.count).bigEndian
         var frame = Data(bytes: &len, count: 4)
         frame.append(body)
-        try await send.writeAll(buf: frame)
+        return frame
     }
 
-    public static func read(from recv: RecvStream) async throws -> Envelope {
-        let header = try await recv.readExact(size: 4)
+    static func frameLength(header: Data) throws -> UInt32 {
         let len = header.withUnsafeBytes { UInt32(bigEndian: $0.load(as: UInt32.self)) }
         guard len > 0, len <= maxFrame else { throw WireError.badFrame }
-        let body = try await recv.readExact(size: len)
-        return try JSONDecoder().decode(Envelope.self, from: body)
+        return len
     }
 
     public enum WireError: Error { case badFrame }

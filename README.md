@@ -20,7 +20,7 @@ Aspen owns the transport (endpoint, accept loop, deadline dials), the roster wit
 - **A state provider**, an async closure returning `OutboundState` — the current seq plus the envelope items to send when a peer is behind. It's called once per contact, so seq and payloads are read as one consistent snapshot.
 - **Handlers** registered per content type with `node.on("state/thing") { envelope, remote in ... }` before `start()`. Aspen gates staleness by seq and advances the cursor after your handler runs; the handler just interprets the payload.
 
-Optionally set `node.log` to see accept-loop errors and ignored envelopes; the library never prints on its own.
+Optionally pass `log:` to the initializer to see accept-loop errors and ignored envelopes; the library never prints on its own.
 
 ## Layout
 
@@ -28,9 +28,9 @@ Optionally set `node.log` to see accept-loop errors and ignored envelopes; the l
 Package.swift            # library product Aspen + executable ping
 Sources/
 ├── Aspen/
-│   ├── Identity.swift   # Ed25519 secret key on disk; EndpointId is the public key
+│   ├── Identity.swift   # Ed25519 secret key on disk; EndpointId is public key
 │   ├── Wire.swift       # Envelope + length-prefixed framing over QUIC streams
-│   ├── Roster.swift     # actor: peer records, cursors, cached addrs (roster.json)
+│   ├── Roster.swift     # Peer records, cursors, cached addrs (roster.json)
 │   └── Node.swift       # endpoint bind, accept loop, deadline dials, sync exchange
 └── ping/
     ├── Ping.swift       # CLI: id | add | status | run, --dir state directories
@@ -74,8 +74,4 @@ Within one sweep each terminal prints the other's status — including terminal 
 
 ## Limits and non-goals
 
-This is a prototype-grade library. State is whatever fits the single-seq model — last-write-wins, no CRDTs or version vectors. Sync is full-mesh only; peers don't gossip or relay for each other. The secret key is a plain file, not Keychain. The package pins tools version 5.10 to keep strict-concurrency at warnings while the iroh bindings and this API settle.
-
-## Pointers
-
-- [docs/guides/000-initial.md](docs/guides/000-initial.md) — the step-by-step walkthrough this code was built from, including the design reasoning for the envelope scheme, seq model, and sweep behavior, plus a "What's next" list.
+This is a prototype-grade library. State is whatever fits the single-seq model — last-write-wins, no CRDTs or version vectors. Sync is full-mesh only; peers don't gossip or relay for each other. The secret key is a plain file, not Keychain. The package builds in Swift 6 language mode with strict concurrency enforced; `Node` and `Roster` are actors.

@@ -27,5 +27,9 @@ let package = Package(
             name: "ping",
             dependencies: ["Aspen"]
         ),
+        .testTarget(
+            name: "AspenTests",
+            dependencies: ["Aspen"]
+        ),
     ]
 )
