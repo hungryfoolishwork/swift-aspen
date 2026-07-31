@@ -157,6 +157,7 @@ public final class Node {
             contentType: "sync/bye", sender: identity.endpointId,
             seq: my.seq, payload: Data()
         ), to: send)
+        try? await send.finish()  // FIN: nothing further on this stream
 
         // 3. Read their side until bye, dispatching on contentType.
         while true {
@@ -171,6 +172,22 @@ public final class Node {
             rec.lastSeenSeq = max(rec.lastSeenSeq, theirHello.seq)
             if !paths.isEmpty { rec.cachedAddrs = paths }
             rec.lastContact = Date()
+        }
+
+        // 5. Deterministic close. Dropping the Connection closes it immediately,
+        //    and whoever finishes first would kill the other side's pending
+        //    reads (ReadError(ConnectionLost)). So the close gets one owner:
+        //    the acceptor closes once it has drained both directions, and the
+        //    dialer parks the connection in a grace task instead of dropping
+        //    it — the acceptor's close normally lands in milliseconds and the
+        //    timer only fires if the peer vanished mid-exchange.
+        if initiator {
+            Task.detached {
+                try? await Task.sleep(for: .seconds(3))
+                try? conn.close(errorCode: 0, reason: Data())
+            }
+        } else {
+            try? conn.close(errorCode: 0, reason: Data())
         }
     }
 
