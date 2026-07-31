@@ -13,7 +13,7 @@ let package = Package(
     ],
     products: [
         .library(name: "Aspen", targets: ["Aspen"]),
-        .executable(name: "ping", targets: ["ping"]), // Example
+        .executable(name: "demo", targets: ["demo"]),
     ],
     dependencies: [
         .package(url: "https://github.com/n0-computer/iroh-ffi.git", from: "1.1.0"),
@@ -24,7 +24,7 @@ let package = Package(
             dependencies: [.product(name: "IrohLib", package: "iroh-ffi")]
         ),
         .executableTarget(
-            name: "ping",
+            name: "demo",
             dependencies: ["Aspen"]
         ),
         .testTarget(

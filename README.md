@@ -1,6 +1,6 @@
 # Aspen
 
-Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships `ping`, a command-line demo app that syncs a single status string between peers — it doubles as the reference integration. Everything is plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework; no Rust toolchain, no Xcode project.
+Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships `demo`, a command-line demo app that syncs a single status string between peers — it doubles as the reference integration. Everything is plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework; no Rust toolchain, no Xcode project.
 
 ## Sync model
 
@@ -25,15 +25,15 @@ Optionally pass `log:` to the initializer to see accept-loop errors and ignored 
 ## Layout
 
 ```
-Package.swift            # library product Aspen + executable ping
+Package.swift            # library product Aspen + executable demo
 Sources/
 ├── Aspen/
 │   ├── Identity.swift   # Ed25519 secret key on disk; EndpointId is public key
 │   ├── Wire.swift       # Envelope + length-prefixed framing over QUIC streams
 │   ├── Roster.swift     # Peer records, cursors, cached addrs (roster.json)
 │   └── Node.swift       # endpoint bind, accept loop, deadline dials, sync exchange
-└── ping/
-    ├── Ping.swift       # CLI: id | add | status | run, --dir state directories
+└── demo/
+    ├── Demo.swift       # CLI: id | add | status | run, --dir state directories
     └── StatusStore.swift # the app-owned state: one status string under a seq
 ```
 
@@ -43,34 +43,32 @@ From a local checkout:
 
 ```swift
 dependencies: [
-    .package(path: "../foolish-ping"),
+    .package(path: "../Aspen"),
 ],
 targets: [
     .target(name: "myapp", dependencies: [
-        .product(name: "Aspen", package: "foolish-ping"),
+        .product(name: "Aspen", package: "Aspen"),
     ]),
 ]
 ```
 
-Note the `package:` value is `"foolish-ping"` — SwiftPM identifies packages by the directory (or URL) basename, not by the `name:` in the manifest. If this repo gets pushed to a remote, swap the path for `.package(url: "https://…/foolish-ping.git", branch: "master")` and the product reference stays the same. Consumers get IrohLib transitively, including its prebuilt xcframework (macOS 14.5+, iOS 17.5+, Catalyst).
-
-## The ping demo
+## Demo
 
 ```bash
 swift build
 
 # Terminal A
-swift run ping --dir ~/tmp/peer-a id        # copy this
-swift run ping --dir ~/tmp/peer-a status "hello from A"
-swift run ping --dir ~/tmp/peer-a run
+swift run demo --dir ~/tmp/peer-a id        # copy this
+swift run demo --dir ~/tmp/peer-a status "hello from A"
+swift run demo --dir ~/tmp/peer-a run
 
 # Terminal B
-swift run ping --dir ~/tmp/peer-b add <A's id>
-swift run ping --dir ~/tmp/peer-b status "B checking in"
-swift run ping --dir ~/tmp/peer-b run
+swift run demo --dir ~/tmp/peer-b add <A's id>
+swift run demo --dir ~/tmp/peer-b status "B checking in"
+swift run demo --dir ~/tmp/peer-b run
 ```
 
-Within one sweep each terminal prints the other's status — including terminal A, which never added B. Each `--dir` (default `~/.config/ping/`) holds one peer's `identity.key`, `roster.json`, and `state.json`, which is how several peers run on one machine.
+Within one sweep each terminal prints the other's status — including terminal A, which never added B. Each `--dir` (default `~/.config/demo/`) holds one peer's `identity.key`, `roster.json`, and `state.json`, which is how several peers run on one machine.
 
 ## Limits and non-goals
 
