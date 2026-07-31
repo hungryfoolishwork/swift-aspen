@@ -25,7 +25,8 @@ let package = Package(
         ),
         .executableTarget(
             name: "demo",
-            dependencies: ["Aspen"]
+            dependencies: ["Aspen"],
+            path: "Examples/demo"
         ),
         .testTarget(
             name: "AspenTests",

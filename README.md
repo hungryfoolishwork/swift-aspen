@@ -1,6 +1,6 @@
 # Aspen
 
-Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships `demo`, a command-line demo app that syncs a single status string between peers — it doubles as the reference integration. Everything is plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework; no Rust toolchain, no Xcode project.
+Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships two examples that sync a single status string between peers: `demo`, a command-line app that doubles as the reference integration, and StatusBoard, a SwiftUI iOS app. The library and CLI are plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework — no Rust toolchain, no Xcode project; only the iOS example carries a (tiny) Xcode project, because iOS app bundles require one.
 
 ## Sync model
 
@@ -27,14 +27,21 @@ Optionally pass `log:` to the initializer to see accept-loop errors and ignored 
 ```
 Package.swift            # library product Aspen + executable demo
 Sources/
-├── Aspen/
-│   ├── Identity.swift   # Ed25519 secret key on disk; EndpointId is public key
-│   ├── Wire.swift       # Envelope + length-prefixed framing over QUIC streams
-│   ├── Roster.swift     # Peer records, cursors, cached addrs (roster.json)
-│   └── Node.swift       # endpoint bind, accept loop, deadline dials, sync exchange
-└── demo/
-    ├── Demo.swift       # CLI: id | add | status | run, --dir state directories
-    └── StatusStore.swift # the app-owned state: one status string under a seq
+└── Aspen/
+    ├── Identity.swift   # Ed25519 secret key on disk; EndpointId is public key
+    ├── Wire.swift       # Envelope + length-prefixed framing over QUIC streams
+    ├── Roster.swift     # Peer records, cursors, cached addrs (roster.json)
+    └── Node.swift       # endpoint bind, accept loop, deadline dials, sync exchange
+Examples/
+├── demo/                # CLI target in this package: id | add | status | run
+│   ├── Demo.swift
+│   └── StatusStore.swift # the app-owned state: one status string under a seq
+└── StatusBoard/         # SwiftUI iOS app; Xcode project depends on ../.. by path
+    └── StatusBoard/
+        ├── StatusBoardApp.swift # node lifecycle tied to scenePhase
+        ├── SyncManager.swift    # owns Identity/Roster/Node, sweeps every 30s
+        ├── StatusStore.swift    # persists my status + statuses heard from peers
+        └── ContentView.swift    # share my id, add peers, see everyone's status
 ```
 
 ## Importing Aspen
@@ -52,7 +59,9 @@ targets: [
 ]
 ```
 
-## Demo
+## Examples
+
+### CLI demo
 
 ```bash
 swift build
@@ -69,6 +78,15 @@ swift run demo --dir ~/tmp/peer-b run
 ```
 
 Within one sweep each terminal prints the other's status — including terminal A, which never added B. Each `--dir` (default `~/.config/demo/`) holds one peer's `identity.key`, `roster.json`, and `state.json`, which is how several peers run on one machine.
+
+### StatusBoard (iOS)
+
+Open `Examples/StatusBoard/StatusBoard.xcodeproj` and run — the project depends on the Aspen package by relative path, so there's nothing to resolve or configure beyond a signing team (and a unique bundle id in place of `com.example.StatusBoard`) if you're deploying to a device; the simulator needs neither. It's the CLI demo with a UI: share your endpoint id from one device, paste it on another, and both statuses converge within a sweep. It also shows the two things an iOS integration adds on top of the demo:
+
+- **Lifecycle**: a stopped `Node` can't be restarted and suspension kills its sockets, so the app builds a fresh node on every return to foreground (`scenePhase`) — cheap, because identity, roster, and cursors are on disk.
+- **Persisting received state**: cursors mean a peer never re-sends what you've already seen, so the app writes statuses it hears to disk instead of holding them in memory like the CLI's print handler does.
+
+`NSLocalNetworkUsageDescription` is set in the project; without it iOS blocks the direct LAN paths and traffic falls back to relays.
 
 ## Limits and non-goals
 

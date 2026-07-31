@@ -40,10 +40,10 @@ import Aspen
             let count = await roster.peers.count
             print("demo \(identity.endpointId.prefix(8))… up, \(count) peers on roster")
             while true {
-                let ids = await Array(roster.peers.keys)  // snapshot: accept-side syncs
-                await withTaskGroup(of: Void.self) { group in  // may grow the roster mid-sweep
-                    for id in ids {                       // concurrent sweep: one dead
-                        group.addTask {                   // peer can't stall the rest
+                let ids = await Array(roster.peers.keys)        // snapshot: accept-side syncs
+                await withTaskGroup(of: Void.self) { group in   // may grow the roster mid-sweep
+                    for id in ids {                             // concurrent sweep: one dead
+                        group.addTask {                         // peer can't stall the rest
                             do { try await node.ping(id) }
                             catch { print("[demo \(id.prefix(8))] failed: \(error)") }
                         }
