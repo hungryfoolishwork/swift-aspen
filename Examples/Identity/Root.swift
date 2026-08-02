@@ -30,10 +30,12 @@ struct Root {
 
     static func loadOrCreate(dir: URL) throws -> Root {
         let file = dir.appendingPathComponent("root.json")
-        if let data = try? Data(contentsOf: file),
-           let stored = try? JSONDecoder().decode(SavedAs.self, from: data),
-           let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: stored.key) {
-                return Root(dir: dir, key: key, nextSeq: stored.nextSeq)
+        // Generate only when no root exists — an unreadable one must throw,
+        // not silently mint a new identity.
+        if FileManager.default.fileExists(atPath: file.path) {
+            let stored = try JSONDecoder().decode(SavedAs.self, from: try Data(contentsOf: file))
+            let key = try Curve25519.Signing.PrivateKey(rawRepresentation: stored.key)
+            return Root(dir: dir, key: key, nextSeq: stored.nextSeq)
         }
         let root = Root(dir: dir, key: .init(), nextSeq: 1)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -67,10 +69,12 @@ struct Root {
 
     private func save() throws {
         let stored = SavedAs(key: key.rawRepresentation, nextSeq: nextSeq)
+        // Must stay readable while the machine is locked, or background
+        // syncs die and restarts re-key.
         try JSONEncoder().encode(stored)
             .write(
                 to: dir.appendingPathComponent("root.json"),
-                options: [.atomic, .completeFileProtection]
+                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
             )
     }
 }
