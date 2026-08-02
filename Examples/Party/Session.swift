@@ -5,7 +5,7 @@ import Aspen
 @Observable @MainActor
 final class Session {
 
-    let alpn = Data("keeper/0".utf8)
+    let alpn = Data("example-party/0".utf8)
     let id: String
     let ledger: Ledger
 
@@ -22,7 +22,7 @@ final class Session {
     private var sweepTask: Task<Void, Never>?
 
     init(baseURL: URL) throws {
-        let url = baseURL.appending(path: "keeper")
+        let url = baseURL.appending(path: "example-party")
         self.ledger = Ledger(baseURL: url)
 
         self.identity = try Identity.loadOrCreate(dir: url)

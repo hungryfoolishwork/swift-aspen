@@ -50,7 +50,7 @@ struct Main: AsyncParsableCommand {
 
                 print("Me: \(session.id)")
                 guard !known.isEmpty else {
-                    print("No peers. Add one with `keeper peer add <endpoint-id>`.")
+                    print("No peers. Add one with `party peer add <endpoint-id>`.")
                     return
                 }
                 for id in known {
