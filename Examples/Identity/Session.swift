@@ -5,7 +5,7 @@ import Aspen
 @Observable @MainActor
 final class Session {
 
-    let alpn = Data("keeper/0".utf8)
+    let alpn = Data("example-identity/0".utf8)
     let id: String
     let ledger: Ledger
 
@@ -14,20 +14,28 @@ final class Session {
     private(set) var peers: [Ledger.Peer] = []
     private(set) var running = false
 
+    // Who this session belongs to; signs the device cert carried in state.
+    private(set) var root: Root
+
     // Iroh accounting
     private let identity: Aspen::Identity
     private let roster: Aspen::Roster
     private var node: Aspen::Node?
 
+    private let dir: URL
     private var sweepTask: Task<Void, Never>?
 
-    init(baseURL: URL) throws {
-        let url = baseURL.appending(path: "keeper")
+    init(baseURL: URL) async throws {
+        let url = baseURL.appending(path: "example-identity")
+        self.dir = url
         self.ledger = Ledger(baseURL: url)
-
+        self.root = try Root.loadOrCreate(dir: url)
         self.identity = try Identity.loadOrCreate(dir: url)
         self.roster = Roster(dir: url)
         self.id = identity.endpointId
+
+        await ensureCert()
+        await refresh()
     }
 
     func start() async throws {
@@ -35,24 +43,29 @@ final class Session {
         await refresh()
 
         let ledger = ledger
+        let snapshot = await ledger.snapshot
 
-        let node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) {
-            let snapshot = await ledger.snapshot
+        node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) {
             let payload = (try? JSONEncoder().encode(snapshot.state)) ?? Data()
             return Aspen::OutboundState(seq: snapshot.seq, items: [
                 .init(contentType: "application/json+state", payload: payload)
             ])
         }
-
-        await node.on("application/json+state") { [weak self] envelope, peer in
-            guard let state = try? JSONDecoder().decode(Ledger.State.self, from: envelope.payload) else { return }
+        await node?.on("application/json+state") { [weak self] envelope, peer in
+            guard var state = try? JSONDecoder().decode(Ledger.State.self, from: envelope.payload) else {
+                return
+            }
+            if let cert = state.cert, !cert.verifies(for: peer) {
+                state.cert = nil  // a claim without proof: keep the records, drop the certification
+            }
             await ledger.set(peer: peer, state: state)
             await self?.refresh()
         }
-        try await node.start()
-        self.node = node
+        
+        try await node?.start()
         running = true
         await refresh()
+
         sweepTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.sweep()
@@ -84,6 +97,29 @@ final class Session {
             try? await node.ping(trimmed)
         }
         await refresh()
+    }
+
+    /// Replace this device's root with one exported from another device and
+    /// re-certify. Peers pick up the new cert on the next sync.
+    func adopt(rootTransfer transfer: String) async throws {
+        root = try Root.adopt(transfer, dir: dir)
+        await ensureCert()
+        await refresh()
+    }
+
+    /// Make sure the current state carries a valid certificate from the current
+    /// root. Sign a new certificate if the state has none, or if it has a stale one,
+    /// meaning it has a different device or different root.
+    private func ensureCert() async {
+        var state = await ledger.snapshot.state
+        if let cert = state.cert, cert.root == root.publicKeyData, cert.verifies(for: id) {
+            return
+        }
+        guard let cert = try? root.certify(device: id) else {
+            return
+        }
+        state.cert = cert
+        await ledger.set(state: state)
     }
 
     func knownPeers() async -> [String] {

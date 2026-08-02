@@ -1,4 +1,4 @@
-.PHONY: party
+.PHONY: party identity
 
 party:
 	swift build --product party

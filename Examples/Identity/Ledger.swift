@@ -20,7 +20,7 @@ actor Ledger {
 
     struct State: Codable {
         var name = ""
-        var root = ""
+        var cert: DeviceCert?  // proof of which root this device belongs to
         var records: [String] = []
     }
 

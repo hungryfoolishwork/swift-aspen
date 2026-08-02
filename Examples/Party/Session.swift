@@ -35,24 +35,26 @@ final class Session {
         await refresh()
 
         let ledger = ledger
+        let snapshot = await ledger.snapshot
 
-        let node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) {
-            let snapshot = await ledger.snapshot
+        node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) {
             let payload = (try? JSONEncoder().encode(snapshot.state)) ?? Data()
             return Aspen::OutboundState(seq: snapshot.seq, items: [
                 .init(contentType: "application/json+state", payload: payload)
             ])
         }
-
-        await node.on("application/json+state") { [weak self] envelope, peer in
-            guard let state = try? JSONDecoder().decode(Ledger.State.self, from: envelope.payload) else { return }
+        await node?.on("application/json+state") { [weak self] envelope, peer in
+            guard let state = try? JSONDecoder().decode(Ledger.State.self, from: envelope.payload) else {
+                return
+            }
             await ledger.set(peer: peer, state: state)
             await self?.refresh()
         }
-        try await node.start()
-        self.node = node
+        
+        try await node?.start()
         running = true
         await refresh()
+
         sweepTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.sweep()
