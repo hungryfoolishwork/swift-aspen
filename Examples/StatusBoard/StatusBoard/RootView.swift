@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ContentView: View {
+struct RootView: View {
     var sync: SyncManager
     @State private var statusDraft = ""
     @State private var peerDraft = ""

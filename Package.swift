@@ -13,20 +13,26 @@ let package = Package(
     ],
     products: [
         .library(name: "Aspen", targets: ["Aspen"]),
-        .executable(name: "demo", targets: ["demo"]),
+        .executable(name: "party", targets: ["party"]),
     ],
     dependencies: [
         .package(url: "https://github.com/n0-computer/iroh-ffi.git", from: "1.1.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [
         .target(
             name: "Aspen",
-            dependencies: [.product(name: "IrohLib", package: "iroh-ffi")]
+            dependencies: [
+                .product(name: "IrohLib", package: "iroh-ffi"),
+            ]
         ),
         .executableTarget(
-            name: "demo",
-            dependencies: ["Aspen"],
-            path: "Examples/demo"
+            name: "party",
+            dependencies: [
+                "Aspen",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Examples/Party"
         ),
         .testTarget(
             name: "AspenTests",
