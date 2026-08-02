@@ -14,6 +14,7 @@ let package = Package(
     products: [
         .library(name: "Aspen", targets: ["Aspen"]),
         .executable(name: "party", targets: ["party"]),
+        .executable(name: "identity", targets: ["identity"]),
     ],
     dependencies: [
         .package(url: "https://github.com/n0-computer/iroh-ffi.git", from: "1.1.0"),
@@ -33,6 +34,14 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "Examples/Party"
+        ),
+        .executableTarget(
+            name: "identity",
+            dependencies: [
+                "Aspen",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Examples/Identity"
         ),
         .testTarget(
             name: "AspenTests",
