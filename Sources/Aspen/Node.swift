@@ -1,5 +1,6 @@
 import Foundation
 import IrohLib
+import Synchronization
 
 /// What the app hands the node to send when a peer is behind: the current
 /// state seq plus the envelope bodies that carry it. Every item goes out
@@ -34,6 +35,9 @@ public actor Node {
     public let identity: Identity
     public let roster: Roster
     public let alpn: Data
+    /// Endpoint configuration: n0's production relays + discovery by default;
+    /// presetMinimal() for relay-free direct dialing (offline, tests).
+    public let preset: Preset
     public let dialTimeout: Duration
     /// Optional diagnostics sink (accept-loop errors, ignored envelopes).
     public let log: (@Sendable (String) -> Void)?
@@ -46,6 +50,7 @@ public actor Node {
         identity: Identity,
         roster: Roster,
         alpn: Data,
+        preset: Preset = presetN0(),
         dialTimeout: Duration = .seconds(5),
         log: (@Sendable (String) -> Void)? = nil,
         stateProvider: @escaping StateProvider
@@ -53,6 +58,7 @@ public actor Node {
         self.identity = identity
         self.roster = roster
         self.alpn = alpn
+        self.preset = preset
         self.dialTimeout = dialTimeout
         self.log = log
         self.stateProvider = stateProvider
@@ -64,7 +70,7 @@ public actor Node {
 
     public func start() async throws {
         endpoint = try await Endpoint.bind(options: EndpointOptions(
-            preset: presetN0(),                     // n0's public relays + DNS discovery
+            preset: preset,
             secretKey: identity.secretKey.toBytes(),
             alpns: [alpn]
         ))
@@ -81,7 +87,22 @@ public actor Node {
     /// Close the endpoint. In-flight syncs are cut off and the accept loop
     /// exits; the node can't be restarted.
     public func stop() async {
-        try? await endpoint?.close()
+        guard let ep = endpoint else { return }
+        // close() can stall for a minute+ when relay teardown misbehaves, and
+        // it ignores cancellation — so it runs unstructured and stop() returns
+        // at the deadline regardless. Teardown is best-effort: peers treat a
+        // vanished node the same as a closed one.
+        let resumed = Atomic<Bool>(false)
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            Task.detached {
+                try? await ep.close()
+                if !resumed.exchange(true, ordering: .relaxed) { cont.resume() }
+            }
+            Task.detached {
+                try? await Task.sleep(for: .seconds(5))
+                if !resumed.exchange(true, ordering: .relaxed) { cont.resume() }
+            }
+        }
     }
 
     // MARK: incoming
