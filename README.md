@@ -25,7 +25,7 @@ Two optional knobs on the initializer: `log:` surfaces accept-loop errors and ig
 ## Layout
 
 ```
-Package.swift             # library Aspen + executables party, identity, identitychain
+Package.swift
 Sources/
 └── Aspen/
     ├── Identity.swift    # Ed25519 secret key on disk; EndpointId is public key
@@ -33,17 +33,7 @@ Sources/
     ├── Roster.swift      # Peer records, cursors, cached addrs (roster.json)
     └── Node.swift        # endpoint bind, accept loop, deadline dials, sync exchange
 Tests/
-└── AspenTests/           # unit tests + an end-to-end sync over loopback (presetMinimal)
-Examples/
-├── Party/                # reference CLI: init | peer | state | watch
-├── Identity/             # root identity signs each device directly; secret moves via export/import
-├── IdentityChain/        # devices vouch for each other in a chain back to the root; adds revocation
-└── StatusBoard/          # SwiftUI iOS app; Xcode project depends on ../.. by path
-    └── StatusBoard/
-        ├── App.swift          # node lifecycle tied to scenePhase
-        ├── SyncManager.swift  # owns Identity/Roster/Node, sweeps every 30s
-        ├── StatusStore.swift  # persists my status + statuses heard from peers
-        └── RootView.swift     # share my id, add peers, see everyone's status
+└── AspenTests/           # Tests + an end-to-end sync over loopback
 ```
 
 ## Importing Aspen
@@ -60,42 +50,6 @@ targets: [
     ]),
 ]
 ```
-
-## Examples
-
-### Party (reference CLI)
-
-Each `--path`/`-p` store directory (default `~/.config`) holds one peer's keys, roster, and state, which is how several peers run on one machine:
-
-```bash
-swift build --product party
-party="$(swift build --show-bin-path)/party"
-
-# Terminal A
-"$party" init -p "$HOME/tmp/peer-a"                  # prints A's endpoint id
-"$party" state add -p "$HOME/tmp/peer-a" "hello from A"
-"$party" watch -p "$HOME/tmp/peer-a"
-
-# Terminal B
-"$party" peer add -p "$HOME/tmp/peer-b" <A's id>
-"$party" state add -p "$HOME/tmp/peer-b" "B checking in"
-"$party" watch -p "$HOME/tmp/peer-b"
-```
-
-Within one sweep each terminal prints the other's records — including terminal A, which never added B.
-
-### Identity and IdentityChain
-
-Both build a "one human, many devices" layer on top of the sync: a long-lived root key identifies the human, devices carry proof of membership in their gossiped state, and `peer list` groups endpoints by verified root instead of listing them flat. They differ in how a device gets its proof. In `identity`, the root secret travels to each device (`root export` / `root import`) and signs each one directly. In `identitychain`, the root secret never leaves the founding device: any enrolled device vouches for the next, proofs are chains of signatures, and signed revocations — with authority flowing only down the chain — cut devices off. The trade-offs are the subject matter; [Examples/IdentityChain/README.md](Examples/IdentityChain/README.md) walks through them.
-
-### StatusBoard (iOS)
-
-Open `Examples/StatusBoard/StatusBoard.xcodeproj` and run — the project depends on the Aspen package by relative path, so there's nothing to resolve or configure beyond a signing team (and a unique bundle id in place of `com.example.StatusBoard`) if you're deploying to a device; the simulator needs neither. It's the party CLI with a UI: share your endpoint id from one device, paste it on another, and both statuses converge within a sweep. It also shows the two things an iOS integration adds:
-
-- **Lifecycle**: a stopped `Node` can't be restarted and suspension kills its sockets, so the app builds a fresh node on every return to foreground (`scenePhase`) — cheap, because identity, roster, and cursors are on disk.
-- **Persisting received state**: cursors mean a peer never re-sends what you've already seen, so the app writes statuses it hears to disk instead of holding them in memory like the CLI's print handler does.
-
-`NSLocalNetworkUsageDescription` is set in the project; without it iOS blocks the direct LAN paths and traffic falls back to relays.
 
 ## Tests
 
