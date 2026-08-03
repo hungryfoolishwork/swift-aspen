@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "aspen",
+    name: "swift-aspen",
     platforms: [
         .macOS(.v26),
         .iOS(.v26),
