@@ -1,6 +1,6 @@
 # Aspen
 
-Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships four examples — `party`, the reference CLI that syncs a list of records between peers; `identity` and `identitychain`, two takes on grouping many devices under one human's root identity; and StatusBoard, a SwiftUI iOS app. The library and CLIs are plain SwiftPM on top of [iroh-ffi](https://github.com/n0-computer/iroh-ffi)'s prebuilt xcframework — no Rust toolchain, no Xcode project; only the iOS example carries a (tiny) Xcode project, because iOS app bundles require one.
+Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships four examples — `party`, the reference CLI that syncs a list of records between peers; `identity` and `identitychain`, two takes on grouping many devices under one human's root identity.
 
 ## Sync model
 
@@ -36,17 +36,20 @@ Tests/
 └── AspenTests/           # Tests + an end-to-end sync over loopback
 ```
 
-## Importing Aspen
+## Importing
 
 From a local checkout:
 
 ```swift
 dependencies: [
-    .package(path: "../Aspen"),
+    .package(
+        url: "https://github.com/hungryfoolishwork/swift-aspen", 
+        branch: "master"
+    ),
 ],
 targets: [
-    .target(name: "myapp", dependencies: [
-        .product(name: "Aspen", package: "Aspen"),
+    .target(name: "MyApp", dependencies: [
+        .product(name: "Aspen", package: "swift-aspen"),
     ]),
 ]
 ```
@@ -54,7 +57,3 @@ targets: [
 ## Tests
 
 `swift test` runs the suite, including an end-to-end sync between two real iroh endpoints wired together by direct address over loopback — `presetMinimal()` means no relays or discovery are involved, so the tests pass offline.
-
-## Limits and non-goals
-
-This is a prototype-grade library. State is whatever fits the single-seq model — last-write-wins, no CRDTs or version vectors. Sync is full-mesh only; peers don't gossip or relay for each other. The secret key is a file under Data Protection, not the Keychain. The package builds in Swift 6 language mode with strict concurrency enforced; `Node` and `Roster` are actors.
