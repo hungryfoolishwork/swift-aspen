@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "Aspen",
+    name: "aspen",
     platforms: [
         .macOS(.v26),
         .iOS(.v26),
@@ -15,6 +15,7 @@ let package = Package(
         .library(name: "Aspen", targets: ["Aspen"]),
         .executable(name: "party", targets: ["party"]),
         .executable(name: "identity", targets: ["identity"]),
+        .executable(name: "identitychain", targets: ["identitychain"]),
     ],
     dependencies: [
         .package(url: "https://github.com/n0-computer/iroh-ffi.git", from: "1.1.0"),
@@ -42,6 +43,14 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "Examples/Identity"
+        ),
+        .executableTarget(
+            name: "identitychain",
+            dependencies: [
+                "Aspen",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Examples/IdentityChain"
         ),
         .testTarget(
             name: "AspenTests",
