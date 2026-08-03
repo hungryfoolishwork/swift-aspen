@@ -18,7 +18,7 @@ let package = Package(
         .executable(name: "identitychain", targets: ["identitychain"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/n0-computer/iroh-ffi.git", from: "1.1.0"),
+        .package(url: "https://github.com/hungryfoolishwork/iroh-ffi.git", branch: "swift-xcframework-coexist"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [

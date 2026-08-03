@@ -1,13 +1,13 @@
 {
-  "originHash" : "3f97149d8ff01912d84a88395130d07bbadc4bf1c8ca58e8aec254e734581f0a",
+  "originHash" : "0783354705e4ade4380e5d3ec4ff5f01b7deefc5865d8511a4a8623a45be6bc2",
   "pins" : [
     {
       "identity" : "iroh-ffi",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/n0-computer/iroh-ffi.git",
+      "location" : "https://github.com/hungryfoolishwork/iroh-ffi.git",
       "state" : {
-        "revision" : "5e451092dba0c1a09ee83ff6e5be37b1152a5c58",
-        "version" : "1.1.0"
+        "branch" : "swift-xcframework-coexist",
+        "revision" : "f1401714aac978c11c01e15098671b2ee193ef2e"
       }
     },
     {
