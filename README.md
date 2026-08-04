@@ -1,6 +1,6 @@
 # Aspen
 
-Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships four examples — `party`, the reference CLI that syncs a list of records between peers; `identity` and `identitychain`, two takes on grouping many devices under one human's root identity.
+Aspen is a small Swift library for peer-to-peer state sync over [iroh](https://iroh.computer): peers dial each other directly by EndpointId, exchange typed envelope messages over QUIC streams, and periodically pull state updates from a roster of known peers. The repo also ships four examples — `party`, the reference CLI that syncs a list of records between peers; `pool`, the same shape but with every device's records merged into one shared set; `identity` and `identitychain`, two takes on grouping many devices under one human's root identity.
 
 ## Sync model
 

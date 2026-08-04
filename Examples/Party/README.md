@@ -27,4 +27,4 @@ The two-terminal walkthrough lives in the [root README](../../README.md) — inc
 
 ## Where the other examples go from here
 
-[`../Identity`](../Identity) and [`../IdentityChain`](../IdentityChain) keep this exact structure and add one concern: proving which human owns each device, so `peer list` can group endpoints by identity instead of listing them flat.
+[`../Pool`](../Pool) keeps the structure but merges every device's records into one shared set — one person's devices converging on a single ledger instead of keeping per-peer piles. [`../Identity`](../Identity) and [`../IdentityChain`](../IdentityChain) add one concern: proving which human owns each device, so `peer list` can group endpoints by identity instead of listing them flat.

@@ -14,6 +14,7 @@ let package = Package(
     products: [
         .library(name: "Aspen", targets: ["Aspen"]),
         .executable(name: "party", targets: ["party"]),
+        .executable(name: "pool", targets: ["pool"]),
         .executable(name: "identity", targets: ["identity"]),
         .executable(name: "identitychain", targets: ["identitychain"]),
     ],
@@ -35,6 +36,14 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "Examples/Party"
+        ),
+        .executableTarget(
+            name: "pool",
+            dependencies: [
+                "Aspen",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Examples/Pool"
         ),
         .executableTarget(
             name: "identity",
