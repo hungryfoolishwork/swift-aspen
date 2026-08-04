@@ -195,11 +195,14 @@ public actor Node {
         ), to: send)
         try? await send.finish()  // FIN: nothing further on this stream
 
-        // 3. Read their side until bye, dispatching on contentType.
+        // 3. Read their side until bye, dispatching on contentType. Staleness
+        //    is judged against the cursor as of the hello: every item in the
+        //    batch carries the same seq, so a per-item cursor would drop all
+        //    but the first.
         while true {
             let env = try await Wire.read(from: recv)
             if env.contentType == "sync/bye" { break }
-            await handle(env, from: remote)
+            await handle(env, from: remote, cursor: myCursor)
         }
 
         // 4. Contact bookkeeping: cursor floor from the hello, fresh addresses, timestamp.
@@ -227,14 +230,12 @@ public actor Node {
         }
     }
 
-    private func handle(_ env: Wire.Envelope, from remote: String) async {
-        let cursor = await roster.peers[remote]?.lastSeenSeq ?? 0
+    private func handle(_ env: Wire.Envelope, from remote: String, cursor: UInt64) async {
         guard env.seq > cursor else { return }  // stale
         guard let handler = handlers[env.contentType] else {
             log?("● \(remote.prefix(8)) → unknown contentType \(env.contentType), ignoring")
             return
         }
         await handler(env, remote)
-        await roster.update(remote) { $0.lastSeenSeq = env.seq }
     }
 }
