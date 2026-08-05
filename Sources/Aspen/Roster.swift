@@ -35,6 +35,15 @@ public actor Roster {
         save()
     }
 
+    /// Forget a peer: stop dialing it and drop everything learned about it.
+    /// Note the accept side re-adds any peer that dials *us* (see `update`),
+    /// so removal only sticks while the removed peer doesn't call back.
+    public func remove(_ id: String) {
+        guard peers[id] != nil else { return }
+        peers[id] = nil
+        save()
+    }
+
     private func save() {
         try? (try? JSONEncoder().encode(peers))?
             .write(to: dir.appendingPathComponent("roster.json"), options: .atomic)
