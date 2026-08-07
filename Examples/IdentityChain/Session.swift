@@ -47,7 +47,7 @@ final class Session {
 
         let node = Aspen::Node(identity: identity, roster: roster, alpn: alpn, log: { msg in
             FileHandle.standardError.write(Data("[node] \(msg)\n".utf8))
-        }) {
+        }) { _ in
             let snapshot = await ledger.snapshot
             let payload = (try? JSONEncoder().encode(snapshot.state)) ?? Data()
             return Aspen::OutboundState(seq: snapshot.seq, items: [

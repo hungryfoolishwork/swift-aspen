@@ -45,7 +45,7 @@ final class Session {
         let ledger = ledger
         let snapshot = await ledger.snapshot
 
-        node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) {
+        node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) { _ in
             let payload = (try? JSONEncoder().encode(snapshot.state)) ?? Data()
             return Aspen::OutboundState(seq: snapshot.seq, items: [
                 .init(contentType: "application/json+state", payload: payload)

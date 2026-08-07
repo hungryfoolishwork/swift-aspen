@@ -39,7 +39,7 @@ final class Session {
         // The ledger is read fresh on every exchange: one-shot commands
         // mutate state after start(), and what goes out must be the merged
         // set as of now, not as of startup.
-        node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) {
+        node = Aspen::Node(identity: identity, roster: roster, alpn: alpn) { _ in
             let snapshot = await ledger.snapshot
             let payload = (try? JSONEncoder().encode(snapshot.records)) ?? Data()
             return Aspen::OutboundState(seq: snapshot.seq, items: [

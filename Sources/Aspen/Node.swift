@@ -26,10 +26,11 @@ public struct OutboundState: Sendable {
 /// Owns the iroh Endpoint: accept loop for incoming syncs, deadline-bounded
 /// outbound dials, and the hello → state-if-newer → bye exchange both sides
 /// run on every contact. App-specific pieces are injected: the ALPN names
-/// your protocol, `stateProvider` supplies what to send, and `on(_:_:)`
-/// registers handlers per content type. Register all handlers before start().
+/// your protocol, `stateProvider` supplies what to send to a given peer, and
+/// `on(_:_:)` registers handlers per content type. Register all handlers
+/// before start().
 public actor Node {
-    public typealias StateProvider = @Sendable () async -> OutboundState
+    public typealias StateProvider = @Sendable (_ remote: String) async -> OutboundState
     public typealias Handler = @Sendable (Wire.Envelope, _ remote: String) async -> Void
 
     public let identity: Identity
@@ -165,7 +166,9 @@ public actor Node {
 
         // One snapshot of app state for the whole exchange — seq and payloads
         // read together, so a concurrent state change can't tear them apart.
-        let my = await stateProvider()
+        // The provider sees who's asking, so an app can shape what it serves
+        // per peer (or serve nothing to a peer it doesn't recognize).
+        let my = await stateProvider(remote)
 
         // 1. Exchange hellos. Payload carries the cursor: "highest seq of YOURS I've seen."
         let myCursor = await roster.peers[remote]?.lastSeenSeq ?? 0
